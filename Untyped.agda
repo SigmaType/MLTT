@@ -15,23 +15,22 @@ open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Negation
 open import Function.Base using (_$_)
 
-data Context (A : N → Set) : N → Set where
+data Context (A : N → Set) : N → Set where         
  ϵ : Context A 0
  _∙_ : {n : N} → Context A n → A n → Context A (S n)
 
 infixl 30 _∙_
 
-
-data GenTs (A : N → Set) : N → List N → Set where
-  []  : {n : N} → GenTs A n []
-  _∷_ : {n b : N} {bs : List N}
-      → (t : A (b + n))
+data GenTs (A : N → Set) : N → List N → Set where   
+  []  : {n : N} → GenTs A n []                 -- Список термов (вместо A будем подставлять Term) в контексте внешних переменных n,
+  _∷_ : {n b : N} {bs : List N}                -- тип которого для каждого терма хранит число дополнительных переменных, на которые
+      → (t : A (b + n))                        -- он может ссылаться вдобавок к внешним
       → (ts : GenTs A n bs)
       → GenTs A n (b ∷ bs)
 
  
 data Kind : (ns : List N) → Set where
-  Ukind : Kind []
+  Ukind : Kind []                       -- Примитивные синтаксические формы
 
   Pikind  : Kind (0 ∷ 1 ∷ [])
   Lamkind : Kind (1 ∷ [])
@@ -132,20 +131,7 @@ _ =  λ▹ (λ▹ (var 1F)) -- λ x y → x
 _ : Term 1
 _ = λ▹ (λ▹ (var 2F)) -- λ x y → z (z - единственная свободная переменная из контекста)
 
-data BindingType : Set where
-  BΠ : BindingType
-  BΣ : BindingType
 
-[_]_▹_ : BindingType → Term n → Term (S n) → Term n   -- Это определение помогает единообразно обрабатывать   
-[ BΠ ] F ▹ G = Π F ▹ G                                --  сигма- и пи-типы для некоторых лемм
-[ BΣ ] F ▹ G = Σ F ▹ G
-
-B-PE-injectivity : ∀ W → [ W ] F ▹ G ≡ [ W ] H ▹ E → F ≡ H × G ≡ E
-B-PE-injectivity BΠ refl = refl , refl
-B-PE-injectivity BΣ refl = refl , refl
-                                                  -- Полезная лемма об инъективности для технических лемм
-suc-PE-injectivity : suc t ≡ suc u → t ≡ u
-suc-PE-injectivity refl = refl
 
 data Neutral : Term n → Set where
   varⁿ       : (x : Fin n) → Neutral (var x)
@@ -171,6 +157,21 @@ data Whnf {n : N} : Term n → Set where
   prodⁿ : Whnf (prod t u)
 
   ne    : Neutral t → Whnf t
+
+data BindingType : Set where
+  BΠ : BindingType
+  BΣ : BindingType
+
+[_]_▹_ : BindingType → Term n → Term (S n) → Term n   -- Эти два определения помогают единообразно обрабатывать   
+[ BΠ ] F ▹ G = Π F ▹ G                                --  сигма- и пи-типы для некоторых лемм
+[ BΣ ] F ▹ G = Σ F ▹ G
+
+B-PE-injectivity : ∀ W → [ W ] F ▹ G ≡ [ W ] H ▹ E → F ≡ H × G ≡ E
+B-PE-injectivity BΠ refl = refl , refl
+B-PE-injectivity BΣ refl = refl , refl
+                                                  -- Полезная лемма об инъективности для технических лемм
+suc-PE-injectivity : suc t ≡ suc u → t ≡ u
+suc-PE-injectivity refl = refl
 
 
 U≢ne : Neutral A → U ≢ A         -- Сейчас будет ряд технических лемм о нейтральности и конструкторах Whnf
@@ -213,7 +214,56 @@ suc≢ne () refl
 
 
 data Natural {n : N} : Term n → Set where
-  oⁿ :             Natural o              -- Техническое нерекурсивное определение для более простых доказательств про ℕ и Whnf
-  sucⁿ  :             Natural (suc t)
+  oⁿ :    Natural o                          -- Техническое нерекурсивное определение для более простых доказательств про ℕ и Whnf
+  sucⁿ  : Natural (suc t)
   ne    : Neutral t → Natural t
 
+
+data Type {n : N} : Term n → Set where     -- Определение того, что является типом (обрати внимание, что U - не тип)
+  Πⁿ    :             Type (Π A ▹ B)
+  Σⁿ    :             Type (Σ A ▹ B)
+  ℕⁿ     :             Type ℕ
+  Emptyⁿ :             Type Empty
+  Unitⁿ  :             Type Unit
+  ne     : Neutral t → Type t
+
+data Function {n : N} : Term n → Set where  -- Определение того, что является функцией
+  λ▹ⁿ : Function (λ▹ t)
+  ne : Neutral t → Function t
+
+data Product {n : N} : Term n → Set where
+  prodⁿ : Product (prod t u)
+  ne    : Neutral t → Product t
+
+
+-- Сейчас пойдут определения функций, которые обитателей индуктивных типов выше "превращают" в Whnf (что неудивительно)
+
+naturalWhnf : Natural t → Whnf t
+naturalWhnf sucⁿ   = sucⁿ
+naturalWhnf oⁿ  = zeroⁿ
+naturalWhnf (ne x) = ne x
+
+typeWhnf : Type A → Whnf A
+typeWhnf Πⁿ     = Πⁿ
+typeWhnf Σⁿ    = Σⁿ
+typeWhnf ℕⁿ     = ℕⁿ
+typeWhnf Emptyⁿ = Emptyⁿ
+typeWhnf Unitⁿ  = Unitⁿ
+typeWhnf (ne x) = ne x
+
+functionWhnf : Function t → Whnf t
+functionWhnf λ▹ⁿ   =  λ▹ⁿ
+functionWhnf (ne x) = ne x
+
+productWhnf : Product t → Whnf t
+productWhnf prodⁿ  = prodⁿ
+productWhnf (ne x) = ne x
+
+[]ⁿ : (W : BindingType) → Whnf ([ W ] F ▹ G)
+[]ⁿ BΠ = Πⁿ
+[]ⁿ BΣ = Σⁿ
+
+data Wk : N → N → Set where                     -- Операция ослабления контекста(из n переменных в m такой, что n ≤ m)
+  id    : {n : N} → Wk n n                      -- Тривиальное ослабление
+  step  : {n m : N} → Wk m n → Wk (S m) n       -- Из n в m + 1
+  lift  : {n m : N} → Wk m n → Wk (S m) (S n)   -- Используется для связывателей типа λ▹ или Π (детально пока не разобрался)
