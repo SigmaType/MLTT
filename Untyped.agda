@@ -19,10 +19,6 @@ data Context (A : N → Set) : N → Set where
  ϵ : Context A 0
  _∙_ : {n : N} → Context A n → A n → Context A (S n)
 
-data Bool : Set where
-  true : Bool
-  false : Bool
-  
 {-
   A : N → Set --- это терм, который может ссылаться на N переменных
   термы --- это базовые языковы сущности
@@ -37,82 +33,10 @@ data Bool : Set where
 
   Термы задаются специальными типами, и контекст может содежать не только термы
 -}
+
 infixl 30 _∙_
 
-{-
-**Задача 1.** Постройте значения:
 
-```agda
-c1 : Context (λ _ → Bool) 3
-c2 : Context (λ n → Fin (S n)) 3
-```
-Во втором случае тип нового элемента зависит от `n`, поэтому не любое число подойдёт на любую позицию. Подберите допустимые значения и объясните, почему на первой позиции (при `n = 0`) выбор единственный.
--}
-
-c1 : Context (λ _ → Bool) 3
-c1 = ((ϵ ∙ true) ∙ false) ∙ true
-
-c2 : Context (λ n → Fin (S n)) 3
-c2 = ((ϵ ∙ 0F) ∙ 1F) ∙ 2F
-
-{-
-**Задача 2.** Определите функции:
-
-```agda
-head : Context A (S n) → A n
-tail : Context A (S n) → Context A n
-```
-
-Обратите внимание, что для них не нужен случай `ϵ`. Объясните, почему Agda не требует его разбирать (подсказка: индекс `S n` и `0` не унифицируются).
--}
-
-head : ∀ {n : N} → {A : N → Set} → Context A (S n) → A n
-head {n} {A} (ctx ∙ elem) = elem
-
-tail : ∀ {n : N} → {A : N → Set} → Context A (S n) → Context A n
-tail {n} {A} (ctx ∙ elem) = ctx
-
-first : ∀ {n : N} {A : N → Set} → Context A (S n) → A zero
-first (ϵ ∙ elem) = elem
-first ((ctx ∙ elem₁) ∙ elem₂) = first (ctx ∙ elem₁)
-
--- **Задача 3.** Докажите, что единственный контекст длины 0 это `ϵ`:
-
-ϵ-unique : ∀ {n : N} → {A : N → Set} → (Γ : Context A 0) → Γ ≡ ϵ
-ϵ-unique ϵ = refl
-
-{-
-**Задача 4.** Определите `map`:
-
-```agda
-map : (∀ {n} → A n → B n) → Context A n → Context B n
-```
-
-Докажите, что `map id ≡ id` и `map (f ∘ g) ≡ map f ∘ map g`.
--}
-mapC : ∀ {n : N} → (A B : N → Set) → (∀ {n} → A n → B n) → Context A n → Context B n
-mapC A B f ϵ = ϵ
-mapC A B f (ctx ∙ elem) = (mapC A B f ctx) ∙ (f elem)
-
--- Докажите, что `map id ≡ id`
-
-id1 : {A : Set} → A → A
-id1 {A} = λ (a : A) → a
-
-mapC-id : ∀ {n} (A : N → Set) (ctx : Context A n) → mapC {n} A A id1 ctx ≡ ctx
-mapC-id A ϵ = refl
-mapC-id A (ctx ∙ x) = cong (λ ctx1 → ctx1 ∙ x) (mapC-id A ctx)
-
--- map (f ∘ g) ≡ map f ∘ map g
-compose : ∀ {A B C : Set} → (A → B) → (B → C) → (A → C)
-compose {A} {B} {C} f g = λ (x : A) → g (f x)
-
-mapC-compose : ∀ {n} (A B C : N → Set) (ctx : Context A n) 
-               (f : ∀ {n} → A n → B n) (g : ∀ {n} → B n → C n) →
-               mapC A C (compose f g) ctx ≡ mapC B C g (mapC A B f ctx)
-               
-mapC-compose A B C ϵ f g = refl
-mapC-compose A B C (ctx ∙ a) f g = cong (λ ctx1 → ctx1 ∙ (g (f a))) (mapC-compose A B C ctx f g)
 
 {-
   A : N → Set - произвольное семейство типов, где могут упоминаться N свободных переменных
@@ -120,7 +44,7 @@ mapC-compose A B C (ctx ∙ a) f g = cong (λ ctx1 → ctx1 ∙ (g (f a))) (mapC
   список связываний для терма
   List N - список чисел, N-ое число соответствует количеству дополнительных переменных в N-ом терме
 
-  Репрезентирует спски подтермов какого-то терма
+  Репрезентирует списки подтермов какого-то терма
 -}
 data GenTs (A : N → Set) : N → List N → Set where   
   []  : {n : N} → GenTs A n []                 -- Список термов (вместо A будем подставлять Term) в контексте внешних переменных n,
@@ -172,10 +96,10 @@ data Kind : (ns : List N) → Set where
 
 data Term (n : N) : Set where
  var : Fin n → Term n
- -- bs - список упоминаний: сколько дополнительных переменных может упоминать каждый терм
- -- k - синтаксическая форма, которую мы строим
- -- t - список подтермов для k
  gen : {bs : List N} (k : Kind bs) (t : GenTs Term n bs) → Term n
+  -- bs - список упоминаний: сколько дополнительных переменных может упоминать каждый подтерм терма
+ -- k - синтаксическая форма
+ -- t - список подтермов для k
 
 private
   variable
@@ -236,37 +160,11 @@ Empty = gen Emptykind []
 Emptyrec : (A e : Term n) → Term n 
 Emptyrec A e = gen Emptyreckind (A ∷ e ∷ [])
 
-_ : Term n
-_ = Π ℕ ▹ Unit
 
-_ : Term n
-_ = Σ U ▹ Empty
-
-_ : Term 0
-_ =  λ▹ (λ▹ (var 0F)) -- λ x → λ y → y
-
-_ : Term 0
-_ =  λ▹ (λ▹ (var 1F)) -- λ x → λ y → x
-
-{-
-После добавления
--- количество внешних переменных, которые могут упоминаться в терме
--- [z] - 1 переменная в контексте
-
--- [y, x, z]
-Можно понимать список переменных как стек, где на вершине находится значене последннй переменной
-var 2F -
-каждый связыватель добавляет переменную в стек, а при обращении мы обращаемся к n-ой переменной слева
--}
-_ : Term 1
-_ = λ▹ (λ▹ (var 2F)) -- λ x y → z (z - единственная свободная переменная из контекста)
-
-
-
-data Neutral : Term n → Set where
-  varⁿ       : (x : Fin n) → Neutral (var x)
+data Neutral : Term n → Set where           -- Терм нейтрален, если в головной позиции переменная, то есть вычисление застревает
+  varⁿ      :(x : Fin n) → Neutral (var x)
   ∘ⁿ        : Neutral t   → Neutral (t ∘ u)
-  fstⁿ      : Neutral t   → Neutral (fst t)  -- Терм нейтрален, если в головной позиции переменная, то есть вычисление застревает
+  fstⁿ      : Neutral t   → Neutral (fst t) 
   sndⁿ      : Neutral t   → Neutral (snd t)
   natrecⁿ   : Neutral v   → Neutral (natrec G t u v)
   Emptyrecⁿ : Neutral t   → Neutral (Emptyrec A t)
@@ -275,12 +173,12 @@ data Neutral : Term n → Set where
 data Whnf {n : N} : Term n → Set where   
   Uⁿ     : Whnf U                         -- Определение того, какой терм находится в слабой головной нормальной форме
   Πⁿ     : Whnf (Π A ▹ B)
-  Σⁿ    : Whnf (Σ A ▹ B)
+  Σⁿ     : Whnf (Σ A ▹ B)
   ℕⁿ     : Whnf ℕ
   Unitⁿ  : Whnf Unit
   Emptyⁿ : Whnf Empty
 
-  λ▹ⁿ  : Whnf (λ▹ t)
+  λ▹ⁿ   : Whnf (λ▹ t)
   zeroⁿ : Whnf o
   sucⁿ  : Whnf (suc t)
   starⁿ : Whnf star
